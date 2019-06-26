@@ -92,7 +92,7 @@ rt %>%
   # scale_y_continuous(labels = seq(0, 60, 20), 
                      # breaks = seq(0, 60, 20), 
                      # minor_breaks = seq(0, 60, 20)) +
-  ggtitle("Number of Tweets by Hour of the Day mentioning #satRdayBerlin") +
+  ggtitle("Number of Tweets by Hour of the Day mentioning #TASMconf") +
   xlab("Hour of the Day (15/06/2019)") +
   ylab("Number of Tweets")
 ```
@@ -267,7 +267,7 @@ rt_graph %>%
   ## plain theme
   theme_void() +
   ## title
-  ggtitle("#satRdayBerlin Twitter Mentions Network")
+  ggtitle("#TASMconf Twitter Mentions Network")
 
 rt_graph %>% 
   ## create graph layout
@@ -286,7 +286,7 @@ rt_graph %>%
   ## plain theme
   theme_void() +
   ## title
-  ggtitle("#satRdayBerlin Twitter Mentions Network")
+  ggtitle("#TASMconf Twitter Mentions Network")
 
 rt_graph %>% 
   ## create graph layout
@@ -305,7 +305,7 @@ rt_graph %>%
   ## plain theme
   theme_void() +
   ## title
-  ggtitle("#satRdayBerlin Twitter Mentions Network")
+  ggtitle("#TASMconf Twitter Mentions Network")
 ```
 
 ### Smaller Mentions Network (n > 2)
@@ -369,7 +369,7 @@ rt_hashtags <- rt %>%
   filter(n > 5)
 
 rt_hashtags %>% 
-  filter(hashtags != "#satRdayBerlin") %>%
+  filter(hashtags != "#TASMconf") %>%
   mutate(hashtags = forcats::fct_reorder(hashtags, n)) %>% 
   ggplot(aes(hashtags, n)) +
   geom_bar(stat = "identity", alpha = .7) +
