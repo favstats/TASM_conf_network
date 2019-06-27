@@ -1,11 +1,11 @@
 ---
-title: "SatRdays Berlin 2019 Twitter Analysis"
+title: "Terrorism and Social Media Conference 2019 Twitter Analysis"
 author: "Fabio"
-date: "2019-06-15"
+date: "2019-06-28"
 output: github_document
 ---
 
-This is a short notebook outlining the code used to scrape tweets related to the satRdays conference in Berlin.
+This is a short notebook outlining the code used to get and analyze tweets on the Terrorism and Social Media conference in Swansea.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = F, error = F, warning = F)
@@ -28,11 +28,11 @@ pacman::p_load(tidyverse, purrr, tidyr, rtweet, stringr, ggraph, igraph, tidygra
 
 Call Twitter API. If you want to get data yourself you have to register with a free account where you get your personal access point to Twitter. Check out [`rtweet`](https://github.com/mkearney/rtweet/) and follow the instructions. 
 
-```{r, eval = F}
-# twitter_token <- readRDS("twitter_token.rds")
+```{r, eval = T}
+twitter_token <- readRDS(".rtweet_token12.rds")
 
 rt <- search_tweets(
-  "#tasmconf", n = 5000, include_rts = T, retryonratelimit = T
+  "#tasmconf", n = 5000, include_rts = T, retryonratelimit = T, token = twitter_token
 )
 
 save(rt, file = "data/rt.Rdata")
@@ -48,16 +48,16 @@ rt %>% glimpse # the same as str, returns a df overview
 ```
 
 
-The top ten retweeted tweets.
+The top ten liked tweets.
 
 ```{r, results="asis"}
 # load("rt.Rdata")
 rt %>% 
   filter(!is_retweet) %>% 
-  select(screen_name, text, retweet_count) %>% 
+  select(screen_name, text, favorite_count) %>% 
   filter(!str_detect(text, "^RT")) %>% 
   mutate(text = str_replace_all(text, "\\\n", " ")) %>% 
-  arrange(desc(retweet_count)) %>% 
+  arrange(desc(favorite_count)) %>% 
   top_n(n = 10) %>% 
   knitr::kable(., format = "markdown")
 ```
@@ -67,7 +67,7 @@ rt %>%
 
 What was the best time to tweet?
 
-```{r, fig.height = 6}
+```{r, fig.height = 8, fig.width = 6}
 rt %>%
   ## parse date format
   mutate(created_at = lubridate::as_datetime(created_at, "Europe/Germany")) %>% 
@@ -78,7 +78,7 @@ rt %>%
     hour = lubridate::hour(created_at)
   ) %>% #select(created_at)
   ## select relevant time period
-  filter(cdate >= as.Date("2019-06-24") & cdate < as.Date("2019-06-27")) %>% 
+  filter(cdate > as.Date("2019-06-24") & cdate < as.Date("2019-06-27")) %>% 
   ## count tweet per and and hour
   group_by(cdate, hour) %>%
   tally %>%
@@ -92,69 +92,20 @@ rt %>%
   # scale_y_continuous(labels = seq(0, 60, 20), 
                      # breaks = seq(0, 60, 20), 
                      # minor_breaks = seq(0, 60, 20)) +
-  ggtitle("Number of Tweets by Hour of the Day mentioning #TASMconf") +
-  xlab("Hour of the Day (15/06/2019)") +
+  ggtitle("What was the best time to tweet?") +
+  labs(subtitle = "Number of Tweets by Hour of the Day mentioning #TASMconf") +
+  xlab("Hour of the Day") +
   ylab("Number of Tweets")
 ```
 
 
 ## Retweet Network
 
-```{r}
-tweets_with_rts <- rt %>% 
-  filter(!is_retweet) %>% 
-  filter(retweet_count > 0) %>% 
-  distinct(status_id) %>% 
-  pull(status_id) 
-
-# get_retweeters("1139476078395875328")
-
-# tweets_with_rts[1:10] %>% 
-#   set_names(tweets_with_rts[1:10]) %>% 
-#   imap(~get_retweeters(.x))
-
-retweets <- vector(mode = 'list', length = length(tweets_with_rts))
-
-for (i in seq_along(tweets_with_rts)) {
-  message("Getting retweets for tweet #", i, "/9891")
-  retweets[[i]] <- get_retweeters(as.character(tweets_with_rts[i]))
-  
-  # Sleep every 50 to let the rate limit reset
-  if(i %% 50 == 0) Sys.sleep(15*60) 
-}
-
-make_df_from_retweets <- function(retweets, tweet) {
-  if (nrow(retweets) > 0) {
-    tibble(from_id = retweets[[1]],
-           tweet_id = tweet)
-  }
-}
-
-tweets_for_joining <- tweets %>% 
-  mutate(tweet_id = str_extract(url, '[0-9]+$'))
-
-retweet_edges <- map2(retweets, tweets_with_rts, make_df_from_retweets) %>% 
-  bind_rows %>% 
-  left_join(tweets_for_joining, by = c("tweet_id")) %>% 
-  select(from_id, user) %>%
-  rename(to_name = user) %>% 
-  left_join(user_details, by = c('from_id' = 'user_id')) %>% 
-  select(screen_name, to_name) %>% 
-  rename(from_name = screen_name) %>% 
-  filter(!is.na(to_name) & !is.na(from_name)) %>% 
-  mutate(type = 'retweet') %>% 
-  count(from_name, to_name, type
-```
-
-
-
 
 ```{r, fig.width = 15, fig.height=15}
 rt_graph <- rt %>% 
   ## select relevant variables
   dplyr::select(screen_name, retweet_screen_name) %>% 
-  ## unnest list of mentions_screen_name
-  unnest %>% 
   ## count the number of coocurences
   group_by(screen_name, retweet_screen_name) %>% 
   tally(sort = T) %>%
@@ -166,7 +117,7 @@ rt_graph <- rt %>%
   ## transforming the dataframe to a graph object
   as_tbl_graph() %>% 
   ## calculating node centrality
-  mutate(popularity = centrality_degree(mode = 'in'))
+  mutate(centrality = centrality_degree(mode = 'in'))
 
 rt_graph %>% 
   ## create graph layout
@@ -177,7 +128,7 @@ rt_graph %>%
   scale_edge_alpha(range = c(.5, .9)) +
   ## define note size param
   scale_edge_color_gradient(low = "gray50", high = "#1874CD") +
-  geom_node_point(aes(size = popularity), color = "gray30") +
+  geom_node_point(aes(size = centrality), color = "gray30") +
   ## equal width and height
   coord_fixed() +
   ## plain theme
@@ -195,7 +146,7 @@ rt_graph %>%
   scale_edge_alpha(range = c(.5, .9)) +
   ## define note size param
   scale_edge_color_gradient(low = "gray50", high = "#1874CD") +
-  geom_node_point(aes(size = popularity), color = "gray30") +
+  geom_node_point(aes(size = centrality), color = "gray30") +
   ## define node labels
   geom_node_text(aes(label = name), repel = T, fontface = "bold") +
   ## equal width and height
@@ -216,7 +167,7 @@ rt_graph %>%
   scale_edge_alpha(range = c(.5, .9)) +
   ## define note size param
   scale_edge_color_gradient(low = "gray50", high = "#1874CD") +
-  geom_node_point(aes(size = popularity), color = "gray30") +
+  geom_node_point(aes(size = centrality), color = "gray30") +
   ## define node labels
   geom_node_text(aes(label = name), repel = F, fontface = "bold") +
   ## equal width and height
@@ -250,7 +201,7 @@ rt_graph <- rt %>%
   ## transforming the dataframe to a graph object
   as_tbl_graph() %>% 
   ## calculating node centrality
-  mutate(popularity = centrality_degree(mode = 'in'))
+  mutate(centrality = centrality_degree(mode = 'in'))
 
 rt_graph %>% 
   ## create graph layout
@@ -261,7 +212,7 @@ rt_graph %>%
   scale_edge_alpha(range = c(.5, .9)) +
   ## define note size param
   scale_edge_color_gradient(low = "gray50", high = "#1874CD") +
-  geom_node_point(aes(size = popularity), color = "gray30") +
+  geom_node_point(aes(size = centrality), color = "gray30") +
   ## equal width and height
   coord_fixed() +
   ## plain theme
@@ -278,7 +229,7 @@ rt_graph %>%
   scale_edge_alpha(range = c(.5, .9)) +
   ## define note size param
   scale_edge_color_gradient(low = "gray50", high = "#1874CD") +
-  geom_node_point(aes(size = popularity), color = "gray30") +
+  geom_node_point(aes(size = centrality), color = "gray30") +
   ## define node labels
   geom_node_text(aes(label = name), repel = T, fontface = "bold") +
   ## equal width and height
@@ -297,7 +248,7 @@ rt_graph %>%
   scale_edge_alpha(range = c(.5, .9)) +
   ## define note size param
   scale_edge_color_gradient(low = "gray50", high = "#1874CD") +
-  geom_node_point(aes(size = popularity), color = "gray30") +
+  geom_node_point(aes(size = centrality), color = "gray30") +
   ## define node labels
   geom_node_text(aes(label = name), repel = F, fontface = "bold") +
   ## equal width and height
@@ -404,7 +355,9 @@ gg_bigram <- rt %>%
   tidytext::unnest_tokens(bigram, text, token = "ngrams", n = 2) %>% 
   separate(bigram, c("word1", "word2"), sep = " ") %>% 
   ## remove the hashtag and count bigrams 
-  filter(word1 != "satRdayBerlin", word2 != "satRdayBerlin") %>%
+  filter(word1 != "tasmconf", word2 != "tasmconf") %>%
+  filter(word1 != "amp", word2 != "amp") %>%
+  filter(word1 != "234", word2 != "234") %>%
   count(word1, word2, sort = T) %>% 
   ## select first 50
   slice(1:50) %>% 
@@ -412,15 +365,15 @@ gg_bigram <- rt %>%
   ## create tidy graph object
   as_tbl_graph() %>% 
   ## calculate node centrality
-  mutate(Popularity = centrality_degree(mode = 'in'))
+  mutate(centrality = centrality_degree(mode = 'in'))
 ```
 
 
-```{r}
+```{r, fig.width = 8, fig.height=6}
 gg_bigram %>% 
   ggraph() +
   geom_edge_link(aes(edge_alpha = n, edge_width = n)) +
-  geom_node_point(aes(size = Popularity)) + 
+  geom_node_point(aes(size = centrality)) + 
   geom_node_text(aes(label = name),  repel = TRUE) +
   theme_void() +
   scale_edge_alpha("", range = c(0.3, .6)) +
